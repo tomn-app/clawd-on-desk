@@ -215,6 +215,10 @@ const {
   mergeSessionFocusEntry,
 } = require("./session-focus");
 const { focusCodexThreadTarget, focusDshDesktopTarget, focusCodeBuddyIdeTarget } = require("./session-focus-handoff");
+const {
+  createClaudeDesktopSidebarFocus,
+  shouldSelectClaudeDesktopSession,
+} = require("./claude-desktop-sidebar-focus");
 const { publishDshFocus } = require("./dsh-focus-stream");
 const { isSessionInProgress } = require("./state-session-snapshot");
 const { restoreSessionsFromRecoveryLeases } = require("./session-recovery-loader");
@@ -2972,8 +2976,15 @@ function getFocusableLocalHudSessionIds() {
   return selectFocusableLocalHudSessionIds(_state.buildSessionSnapshot(), { osPlatform: process.platform });
 }
 
+const _claudeDesktopSidebarFocus = createClaudeDesktopSidebarFocus({ focusLog });
+
 function focusTerminalSession(session, sessionId, requestSource) {
   if (!session || (!session.sourcePid && !session.orcaPaneKey)) return false;
+  // Claude Desktop: the walk below raises the window; this also opens the
+  // clicked session in its sidebar. Runs alongside, never blocks the focus.
+  if (shouldSelectClaudeDesktopSession(session, process.platform)) {
+    _claudeDesktopSidebarFocus.selectSession(session, String(sessionId)).catch(() => {});
+  }
   return focusTerminalWindow({
     sourcePid: session.sourcePid,
     wtHwnd: getSessionFocusWtHwnd(session),
