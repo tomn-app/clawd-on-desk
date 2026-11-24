@@ -26,11 +26,6 @@ const HUD_ROW_HEIGHT = 28;
 const HUD_MAX_EXPANDED_ROWS = 3;
 const HUD_MAX_EXPANDED_ROWS_LABELS = 5;
 const HUD_HEIGHT = HUD_ROW_HEIGHT + HUD_BORDER_Y;
-// Mirrors session-hud-renderer.js's compact-title budget at the automatic
-// width. A wider user-chosen HUD gives the extra CSS px to the title, at
-// roughly one ASCII "unit" per HUD_TITLE_PX_PER_UNIT at the 12px title font.
-const HUD_TITLE_MAX_UNITS = 15;
-const HUD_TITLE_PX_PER_UNIT = 7;
 const HUD_WINDOW_SHELL = Object.freeze({
   top: 2,
   right: 3,
@@ -336,16 +331,6 @@ function getHudWidth(showElapsed = true, showStateLabels = true, showContextUsag
     : autoWidth;
 }
 
-// The renderer's compact title cap grows with the width added on top of the
-// automatic width, so a wider HUD actually shows longer titles. CSS ellipsis
-// still guards the row if a proportional font runs wider than the estimate.
-function getHudTitleMaxUnits(width, autoWidth) {
-  if (!Number.isFinite(width) || !Number.isFinite(autoWidth) || width <= autoWidth) {
-    return HUD_TITLE_MAX_UNITS;
-  }
-  return HUD_TITLE_MAX_UNITS + Math.floor((width - autoWidth) / HUD_TITLE_PX_PER_UNIT);
-}
-
 function deferMacFloatingVisibility(ctx, win) {
   if (!isMac || !win || win.isDestroyed()) return;
   const deferUntil = Date.now() + MAC_FLOATING_TOPMOST_DELAY_MS;
@@ -396,14 +381,6 @@ module.exports = function initSessionHud(ctx) {
       ctx.sessionHudShowContextUsage !== false,
       hasTaggedFallback,
       preferredWidth
-    );
-  }
-
-  function currentHudTitleMaxUnits() {
-    const hasTaggedFallback = layoutHasTaggedFallback(lastHudLayout);
-    return getHudTitleMaxUnits(
-      currentHudWidth(hasTaggedFallback),
-      currentHudWidth(hasTaggedFallback, 0)
     );
   }
 
@@ -709,7 +686,6 @@ module.exports = function initSessionHud(ctx) {
       hudShowQuota: ctx.sessionHudShowQuota !== false,
       hudPinned: ctx.sessionHudPinned === true,
       hudMaxRows: getHudMaxExpandedRows(ctx.sessionHudShowStateLabels !== false, ctx.sessionHudMaxRows),
-      hudTitleMaxUnits: currentHudTitleMaxUnits(),
     });
   }
 
@@ -1105,7 +1081,6 @@ module.exports.__test = {
   isHudSession,
   layoutHasTaggedFallback,
   getHudWidth,
-  getHudTitleMaxUnits,
   getHudWidthScale,
   computeHudOuterWidth,
   evaluateBaseEligible,
@@ -1125,8 +1100,6 @@ module.exports.__test = {
     HUD_ROW_HEIGHT,
     HUD_MAX_EXPANDED_ROWS,
     HUD_MAX_EXPANDED_ROWS_LABELS,
-    HUD_TITLE_MAX_UNITS,
-    HUD_TITLE_PX_PER_UNIT,
     HUD_WINDOW_SHELL,
     HUD_PET_GAP,
     BUBBLE_GAP,

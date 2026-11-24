@@ -18,7 +18,6 @@ const {
   computeHudHeight,
   getHudMaxExpandedRows,
   getHudWidth,
-  getHudTitleMaxUnits,
   constants,
 } = sessionHud.__test;
 
@@ -93,15 +92,6 @@ describe("session HUD width setting", () => {
     assert.strictEqual(getHudWidth(true, true, true, false, 5000), auto);
   });
 
-  it("grows the compact title budget with the extra width", () => {
-    assert.strictEqual(getHudTitleMaxUnits(300, 300), constants.HUD_TITLE_MAX_UNITS);
-    assert.strictEqual(getHudTitleMaxUnits(250, 300), constants.HUD_TITLE_MAX_UNITS);
-    assert.strictEqual(
-      getHudTitleMaxUnits(300 + constants.HUD_TITLE_PX_PER_UNIT * 20, 300),
-      constants.HUD_TITLE_MAX_UNITS + 20
-    );
-  });
-
   it("resizes the real window bounds and keeps a wide HUD inside the work area", () => {
     const workArea = { x: 0, y: 0, width: 1920, height: 1080 };
     const hitRect = { left: 1800, top: 400, right: 1900, bottom: 500 };
@@ -152,14 +142,14 @@ describe("session HUD max visible sessions setting", () => {
     assert.strictEqual(one.folded.length, 9);
   });
 
-  it("main sends the effective cap and title budget; the renderer obeys them", () => {
+  it("main sends the effective cap; the renderer obeys it and sizes titles by CSS", () => {
     const hud = read("src/session-hud.js");
     assert.match(hud, /hudMaxRows: getHudMaxExpandedRows\(ctx\.sessionHudShowStateLabels !== false, ctx\.sessionHudMaxRows\)/);
-    assert.match(hud, /hudTitleMaxUnits: currentHudTitleMaxUnits\(\)/);
+    assert.doesNotMatch(hud, /hudTitleMaxUnits/);
     assert.match(hud, /maxRows: ctx\.sessionHudMaxRows/);
     const renderer = read("src/session-hud-renderer.js");
     assert.match(renderer, /const configured = Number\(snapshot\.hudMaxRows\)/);
-    assert.match(renderer, /shortenHudTitle\(fullTitle, hudTitleMaxUnits\(\)\)/);
+    assert.doesNotMatch(renderer, /shortenHudTitle|hudTitleMaxUnits/);
   });
 });
 
