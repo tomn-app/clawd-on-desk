@@ -33,6 +33,7 @@ const {
   normalizePermissionReviewCommand,
 } = require("./permission-review-command");
 const { isValidDisplaySnapshot } = require("./work-area");
+const { isValidSessionHudWidth, isValidSessionHudMaxRows } = require("./session-hud-size");
 const { normalizeRemoteSsh, getDefaults: getRemoteSshDefaults } = require("./remote-ssh-profile");
 const {
   cloneDefaultTelegramApproval,
@@ -199,6 +200,11 @@ const SCHEMA = {
   sessionHudShowStateLabels: { type: "boolean", default: true },
   sessionHudShowElapsed: { type: "boolean", default: false },
   sessionHudShowContextUsage: { type: "boolean", default: true },
+  // HUD size. 0 = Auto (the historical layout-derived width / per-label-mode
+  // row cap), so existing users see no change. Width is a CSS px floor on the
+  // automatic width; rows beyond the cap fold into "{n} other active".
+  sessionHudWidth: { type: "number", default: 0, validate: isValidSessionHudWidth },
+  sessionHudMaxRows: { type: "number", default: 0, validate: isValidSessionHudMaxRows },
   // Display-only and opt-in: completed ordinary ephemeral side chats are also
   // collapsed; the Dashboard remains the complete session list.
   sessionHudHideCompletedCodexEphemeral: { type: "boolean", default: false },

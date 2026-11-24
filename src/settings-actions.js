@@ -98,6 +98,14 @@ const {
   requirePlainObject,
   requireStringArray,
 } = require("./settings-validators");
+const {
+  isValidSessionHudWidth,
+  isValidSessionHudMaxRows,
+  SESSION_HUD_WIDTH_MIN,
+  SESSION_HUD_WIDTH_MAX,
+  SESSION_HUD_MAX_ROWS_MIN,
+  SESSION_HUD_MAX_ROWS_MAX,
+} = require("./session-hud-size");
 const { listIdleVisualOptions } = require("./idle-visual");
 const {
   registerShortcut,
@@ -452,6 +460,22 @@ const updateRegistry = {
   sessionHudShowStateLabels: requireBoolean("sessionHudShowStateLabels"),
   sessionHudShowElapsed: requireBoolean("sessionHudShowElapsed"),
   sessionHudShowContextUsage: requireBoolean("sessionHudShowContextUsage"),
+  sessionHudWidth(value) {
+    return isValidSessionHudWidth(value)
+      ? { status: "ok" }
+      : {
+        status: "error",
+        message: `sessionHudWidth must be 0 (auto) or an integer between ${SESSION_HUD_WIDTH_MIN} and ${SESSION_HUD_WIDTH_MAX}`,
+      };
+  },
+  sessionHudMaxRows(value) {
+    return isValidSessionHudMaxRows(value)
+      ? { status: "ok" }
+      : {
+        status: "error",
+        message: `sessionHudMaxRows must be 0 (auto) or an integer between ${SESSION_HUD_MAX_ROWS_MIN} and ${SESSION_HUD_MAX_ROWS_MAX}`,
+      };
+  },
   sessionHudHideCompletedCodexEphemeral: requireBoolean("sessionHudHideCompletedCodexEphemeral"),
   sessionHudHideActiveCodexEphemeral: requireBoolean("sessionHudHideActiveCodexEphemeral"),
   sessionHudShowQuota: requireBoolean("sessionHudShowQuota"),

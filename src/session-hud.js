@@ -6,6 +6,7 @@ const { keepOutOfTaskbar } = require("./taskbar");
 const { hasTaggedFallbackRow } = require("./session-hud-tagged-fallback");
 const { clampTextScale, scaleHeight, applyZoomToWindow } = require("./text-scale");
 const ringGeom = require("./quota-ring-geometry");
+const { isValidSessionHudWidth, isValidSessionHudMaxRows } = require("./session-hud-size");
 
 const isLinux = process.platform === "linux";
 const isMac = process.platform === "darwin";
@@ -25,6 +26,11 @@ const HUD_ROW_HEIGHT = 28;
 const HUD_MAX_EXPANDED_ROWS = 3;
 const HUD_MAX_EXPANDED_ROWS_LABELS = 5;
 const HUD_HEIGHT = HUD_ROW_HEIGHT + HUD_BORDER_Y;
+// Mirrors session-hud-renderer.js's compact-title budget at the automatic
+// width. A wider user-chosen HUD gives the extra CSS px to the title, at
+// roughly one ASCII "unit" per HUD_TITLE_PX_PER_UNIT at the 12px title font.
+const HUD_TITLE_MAX_UNITS = 15;
+const HUD_TITLE_PX_PER_UNIT = 7;
 const HUD_WINDOW_SHELL = Object.freeze({
   top: 2,
   right: 3,
@@ -166,7 +172,8 @@ function evaluateShouldShow({
   return { show, nextHoldUntil };
 }
 
-function getHudMaxExpandedRows(showStateLabels = true) {
+function getHudMaxExpandedRows(showStateLabels = true, maxRows = 0) {
+  if (isValidSessionHudMaxRows(maxRows) && maxRows > 0) return maxRows;
   return showStateLabels === false ? HUD_MAX_EXPANDED_ROWS : HUD_MAX_EXPANDED_ROWS_LABELS;
 }
 
@@ -181,7 +188,7 @@ function computeHudLayout(snapshot, options = {}) {
   const orderedSet = new Set(ordered.map((s) => s.id));
   const missing = sessions.filter((s) => !orderedSet.has(s.id));
   const visible = ordered.concat(missing).filter(isHudSession);
-  const maxExpandedRows = getHudMaxExpandedRows(options.showStateLabels);
+  const maxExpandedRows = getHudMaxExpandedRows(options.showStateLabels, options.maxRows);
   const expanded = visible.slice(0, maxExpandedRows);
   const folded = visible.slice(maxExpandedRows);
   const rowCount = expanded.length + (folded.length > 0 ? 1 : 0);
@@ -248,8 +255,13 @@ function computeSessionHudBounds({ hitRect, anchorRect, workArea, width = HUD_WI
   // HUD stays compact instead of turning into a banner.
   const s = clampTextScale(scale);
   const ws = clampTextScale(widthScale);
-  const dipWidth = Math.round(width * ws);
-  const dipHeight = Math.ceil(height * s);
+  const edgeMargin = Math.round(EDGE_MARGIN * s);
+  // A user-chosen width (or a long row cap) must never push the window off a
+  // small display: keep the content inside the work area minus edge margins.
+  const maxDipWidth = Math.max(1, Math.floor(workArea.width - edgeMargin * 2));
+  const maxDipHeight = Math.max(1, Math.floor(workArea.height - edgeMargin * 2));
+  const dipWidth = Math.min(Math.round(width * ws), maxDipWidth);
+  const dipHeight = Math.min(Math.ceil(height * s), maxDipHeight);
   const shell = {
     top: Math.round(HUD_WINDOW_SHELL.top * s),
     right: Math.round(HUD_WINDOW_SHELL.right * s),
@@ -257,7 +269,6 @@ function computeSessionHudBounds({ hitRect, anchorRect, workArea, width = HUD_WI
     left: Math.round(HUD_WINDOW_SHELL.left * s),
   };
   const petGap = Math.round(HUD_PET_GAP * s);
-  const edgeMargin = Math.round(EDGE_MARGIN * s);
 
   const outerWidth = dipWidth + shell.left + shell.right;
   const outerHeight = dipHeight + shell.top + shell.bottom;
@@ -302,7 +313,7 @@ function computeSessionHudBounds({ hitRect, anchorRect, workArea, width = HUD_WI
   };
 }
 
-function getHudWidth(showElapsed = true, showStateLabels = true, showContextUsage = false, hasTaggedFallback = false) {
+function getHudWidth(showElapsed = true, showStateLabels = true, showContextUsage = false, hasTaggedFallback = false, preferredWidth = 0) {
   const base = showStateLabels === false
     ? (showElapsed === false ? HUD_WIDTH_COMPACT : HUD_WIDTH)
     : (showElapsed === false ? HUD_WIDTH_LABELS_COMPACT : HUD_WIDTH_LABELS);
@@ -317,7 +328,22 @@ function getHudWidth(showElapsed = true, showStateLabels = true, showContextUsag
   // label-only widths (notably showElapsed=false) no longer fit tag + status
   // label + pin side by side. Widen the window for those rows instead of
   // letting the row overflow under the pin.
-  return hasTaggedFallback ? width + HUD_TAGGED_FALLBACK_WIDTH_BUMP : width;
+  const autoWidth = hasTaggedFallback ? width + HUD_TAGGED_FALLBACK_WIDTH_BUMP : width;
+  // The user's width is a floor: chips, actions and tags keep the room the
+  // automatic width reserves for them, and the extra goes to the title.
+  return isValidSessionHudWidth(preferredWidth) && preferredWidth > autoWidth
+    ? preferredWidth
+    : autoWidth;
+}
+
+// The renderer's compact title cap grows with the width added on top of the
+// automatic width, so a wider HUD actually shows longer titles. CSS ellipsis
+// still guards the row if a proportional font runs wider than the estimate.
+function getHudTitleMaxUnits(width, autoWidth) {
+  if (!Number.isFinite(width) || !Number.isFinite(autoWidth) || width <= autoWidth) {
+    return HUD_TITLE_MAX_UNITS;
+  }
+  return HUD_TITLE_MAX_UNITS + Math.floor((width - autoWidth) / HUD_TITLE_PX_PER_UNIT);
 }
 
 function deferMacFloatingVisibility(ctx, win) {
@@ -355,6 +381,31 @@ module.exports = function initSessionHud(ctx) {
   let pollTimer = null;
   let clickRevealed = false;
   let visibleHoldUntil = 0;
+
+  function currentLayoutOptions() {
+    return {
+      showStateLabels: ctx.sessionHudShowStateLabels !== false,
+      maxRows: ctx.sessionHudMaxRows,
+    };
+  }
+
+  function currentHudWidth(hasTaggedFallback, preferredWidth = ctx.sessionHudWidth) {
+    return getHudWidth(
+      ctx.sessionHudShowElapsed !== false,
+      ctx.sessionHudShowStateLabels !== false,
+      ctx.sessionHudShowContextUsage !== false,
+      hasTaggedFallback,
+      preferredWidth
+    );
+  }
+
+  function currentHudTitleMaxUnits() {
+    const hasTaggedFallback = layoutHasTaggedFallback(lastHudLayout);
+    return getHudTitleMaxUnits(
+      currentHudWidth(hasTaggedFallback),
+      currentHudWidth(hasTaggedFallback, 0)
+    );
+  }
 
   function getCurrentSnapshot() {
     return typeof ctx.getSessionSnapshot === "function"
@@ -436,14 +487,9 @@ module.exports = function initSessionHud(ctx) {
       ? ctx.getNearestWorkArea(cx, cy)
       : { x: 0, y: 0, width: 1280, height: 800 };
     const hasTaggedFallback = layoutHasTaggedFallback(
-      computeHudLayout(snapshot, { showStateLabels: ctx.sessionHudShowStateLabels !== false })
+      computeHudLayout(snapshot, currentLayoutOptions())
     );
-    const width = getHudWidth(
-      ctx.sessionHudShowElapsed !== false,
-      ctx.sessionHudShowStateLabels !== false,
-      ctx.sessionHudShowContextUsage !== false,
-      hasTaggedFallback
-    );
+    const width = currentHudWidth(hasTaggedFallback);
     const widthScale = getHudWidthScale(scale, hasTaggedFallback);
     // Must carry the SAME scale the visible HUD was laid out with — an
     // unscaled expectation makes the auto-hide hot zone smaller than the
@@ -452,7 +498,7 @@ module.exports = function initSessionHud(ctx) {
     const hasSessions = snapshotHasVisibleSessions(snapshot);
     let contentBounds = null;
     if (hudEnabled && hasSessions) {
-      const layout = computeHudLayout(snapshot, { showStateLabels: ctx.sessionHudShowStateLabels !== false });
+      const layout = computeHudLayout(snapshot, currentLayoutOptions());
       const height = computeHudHeight(layout.rowCount);
       const computed = computeSessionHudBounds({ hitRect, anchorRect, workArea, width, height, scale, widthScale });
       contentBounds = computed && computed.contentBounds;
@@ -662,6 +708,8 @@ module.exports = function initSessionHud(ctx) {
       hudShowContextUsage: ctx.sessionHudShowContextUsage !== false,
       hudShowQuota: ctx.sessionHudShowQuota !== false,
       hudPinned: ctx.sessionHudPinned === true,
+      hudMaxRows: getHudMaxExpandedRows(ctx.sessionHudShowStateLabels !== false, ctx.sessionHudMaxRows),
+      hudTitleMaxUnits: currentHudTitleMaxUnits(),
     });
   }
 
@@ -819,12 +867,7 @@ module.exports = function initSessionHud(ctx) {
     didFinishLoad = false;
     hudFlippedAbove = false;
     const hasTaggedFallback = layoutHasTaggedFallback(lastHudLayout);
-    const hudWidth = getHudWidth(
-      ctx.sessionHudShowElapsed !== false,
-      ctx.sessionHudShowStateLabels !== false,
-      ctx.sessionHudShowContextUsage !== false,
-      hasTaggedFallback
-    );
+    const hudWidth = currentHudWidth(hasTaggedFallback);
     // Provisional CSS px → DIP size; syncSessionHud() replaces it with the
     // precise computeSessionHudBounds() result before the window is shown.
     const scale = getTextScale();
@@ -900,15 +943,10 @@ module.exports = function initSessionHud(ctx) {
     const workArea = typeof ctx.getNearestWorkArea === "function"
       ? ctx.getNearestWorkArea(cx, cy)
       : { x: 0, y: 0, width: 1280, height: 800 };
-    const layout = computeHudLayout(snapshot, { showStateLabels: ctx.sessionHudShowStateLabels !== false });
+    const layout = computeHudLayout(snapshot, currentLayoutOptions());
     const height = computeHudHeight(layout.rowCount);
     const hasTaggedFallback = layoutHasTaggedFallback(layout);
-    const width = getHudWidth(
-      ctx.sessionHudShowElapsed !== false,
-      ctx.sessionHudShowStateLabels !== false,
-      ctx.sessionHudShowContextUsage !== false,
-      hasTaggedFallback
-    );
+    const width = currentHudWidth(hasTaggedFallback);
     const widthScale = getHudWidthScale(scale, hasTaggedFallback);
     lastHudHeight = height;
     lastHudLayout = layout;
@@ -1067,6 +1105,7 @@ module.exports.__test = {
   isHudSession,
   layoutHasTaggedFallback,
   getHudWidth,
+  getHudTitleMaxUnits,
   getHudWidthScale,
   computeHudOuterWidth,
   evaluateBaseEligible,
@@ -1086,6 +1125,8 @@ module.exports.__test = {
     HUD_ROW_HEIGHT,
     HUD_MAX_EXPANDED_ROWS,
     HUD_MAX_EXPANDED_ROWS_LABELS,
+    HUD_TITLE_MAX_UNITS,
+    HUD_TITLE_PX_PER_UNIT,
     HUD_WINDOW_SHELL,
     HUD_PET_GAP,
     BUBBLE_GAP,

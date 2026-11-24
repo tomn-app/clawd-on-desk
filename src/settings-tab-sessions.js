@@ -9,6 +9,8 @@
     "sessionHudShowStateLabels",
     "sessionHudShowElapsed",
     "sessionHudShowContextUsage",
+    "sessionHudWidth",
+    "sessionHudMaxRows",
     "sessionHudCleanupDetached",
     "sessionHudHideCompletedCodexEphemeral",
     "sessionHudHideActiveCodexEphemeral",
@@ -29,6 +31,20 @@
     "codexWorkingStaleMs",
     "detachedIdleStaleMs",
   ]);
+  // Number inputs in the Session HUD section; 0 renders as "Auto". They share
+  // buildNumberInputRow's mounted-control map with the cleanup inputs, so the
+  // in-place patch path is the same.
+  const SESSION_HUD_NUMBER_KEYS = new Set([
+    "sessionHudWidth",
+    "sessionHudMaxRows",
+  ]);
+  // Mirrors src/session-hud-size.js (the settings page cannot require it).
+  const SESSION_HUD_WIDTH_MIN = 200;
+  const SESSION_HUD_WIDTH_MAX = 800;
+  const SESSION_HUD_MAX_ROWS_MAX = 12;
+  function isSessionNumberInputKey(key) {
+    return SESSION_CLEANUP_NUMBER_KEYS.has(key) || SESSION_HUD_NUMBER_KEYS.has(key);
+  }
   const SESSION_CLEANUP_DEFAULTS = {
     sessionStaleMs: 600_000,
     workingStaleMs: 300_000,
@@ -566,6 +582,28 @@
         descKey: "rowSessionHudContextUsageDesc",
         disabled: !sessionHudControlsEnabled,
       }),
+      helpers.buildNumberInputRow({
+        key: "sessionHudWidth",
+        labelKey: "rowSessionHudWidth",
+        descKey: "rowSessionHudWidthDesc",
+        unitKey: "unitPixels",
+        toDisplay: (px) => px,
+        // 1–199 snap up to the minimum rather than failing; 0 stays Auto.
+        fromDisplay: (px) => Math.max(SESSION_HUD_WIDTH_MIN, Math.min(SESSION_HUD_WIDTH_MAX, Math.round(px))),
+        min: 0,
+        max: SESSION_HUD_WIDTH_MAX,
+        zeroLabelKey: "valueAuto",
+      }).row,
+      helpers.buildNumberInputRow({
+        key: "sessionHudMaxRows",
+        labelKey: "rowSessionHudMaxRows",
+        descKey: "rowSessionHudMaxRowsDesc",
+        toDisplay: (rows) => rows,
+        fromDisplay: (rows) => Math.max(1, Math.min(SESSION_HUD_MAX_ROWS_MAX, Math.round(rows))),
+        min: 0,
+        max: SESSION_HUD_MAX_ROWS_MAX,
+        zeroLabelKey: "valueAuto",
+      }).row,
       helpers.buildSwitchRow({
         key: "sessionHudCleanupDetached",
         labelKey: "rowSessionHudCleanupDetached",
@@ -739,9 +777,9 @@
       const control = state.mountedControls.quotaAlertThresholds;
       if (!control || !document.body.contains(control.row)) return false;
     }
-    if (keys.some((key) => SESSION_CLEANUP_NUMBER_KEYS.has(key))) {
+    if (keys.some((key) => isSessionNumberInputKey(key))) {
       for (const key of keys) {
-        if (!SESSION_CLEANUP_NUMBER_KEYS.has(key)) continue;
+        if (!isSessionNumberInputKey(key)) continue;
         const meta = state.mountedControls.sessionCleanupControls.get(key);
         if (!meta || !document.body.contains(meta.row)) return false;
       }
@@ -749,7 +787,7 @@
     for (const key of keys) {
       if (key === "quotaRingDisplayMode") continue;
       if (key === "quotaAlertThresholds") continue;
-      if (SESSION_CLEANUP_NUMBER_KEYS.has(key)) continue;
+      if (isSessionNumberInputKey(key)) continue;
       const meta = state.mountedControls.generalSwitches.get(key);
       if (!meta || !document.body.contains(meta.element)) return false;
     }
@@ -761,7 +799,7 @@
         );
         continue;
       }
-      if (SESSION_CLEANUP_NUMBER_KEYS.has(key)) {
+      if (isSessionNumberInputKey(key)) {
         state.mountedControls.sessionCleanupControls.get(key).syncFromSnapshot();
         continue;
       }
