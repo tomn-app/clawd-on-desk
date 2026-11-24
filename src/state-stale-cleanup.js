@@ -92,7 +92,7 @@ function isLocalWorkBuddyDesktopIdleSession(session) {
     && session.state === "idle";
 }
 
-function isLocalClaudeDesktopIdleSession(session) {
+function isLocalClaudeDesktopSession(session) {
   return !!session
     && session.agentId === "claude-code"
     && !session.host
@@ -100,8 +100,23 @@ function isLocalClaudeDesktopIdleSession(session) {
     // A WSL session can carry only wslDistro (no host prefix), so exclude both
     // markers explicitly; its Linux PIDs must never be probed as local ones.
     && !isWslSourced({ wslDistro: session.wslDistro, host: session.host })
-    && session.state === "idle"
     && session.claudeEntrypoint === "claude-desktop";
+}
+
+function isLocalClaudeDesktopIdleSession(session) {
+  return isLocalClaudeDesktopSession(session) && session.state === "idle";
+}
+
+// Claude Desktop's own view of the session ({ archived, unread }), or null when
+// unknown. Read from its session files by the caller.
+function getClaudeDesktopFileState(session, options) {
+  if (typeof options.getClaudeDesktopSessionState !== "function") return null;
+  try {
+    const state = options.getClaudeDesktopSessionState(session);
+    return state && typeof state === "object" ? state : null;
+  } catch {
+    return null;
+  }
 }
 
 function isLocalCodeBuddyIdeSession(session) {
@@ -184,6 +199,16 @@ function getStaleSessionDecision(session, options = {}) {
 
   if (hasReachableAgentPid && !agentAlive && !codeBuddyIdeAgentExitWithLiveSource) {
     return { action: "delete", reason: "agent-exit" };
+  }
+
+  // Archived in Claude Desktop: the user is done with it. Its claude process
+  // usually ends too (agent-exit above), but do not wait for that.
+  if (
+    isLocalClaudeDesktopSession(session)
+    && options.hasPendingClaudeInteraction !== true
+    && getClaudeDesktopFileState(session, options)?.archived === true
+  ) {
+    return { action: "delete", reason: "claude-desktop-archived" };
   }
 
   // A confirmed pending interaction can wait indefinitely. Keep process-exit
@@ -290,6 +315,8 @@ function getStaleSessionDecision(session, options = {}) {
   ) {
     if (options.hasPendingClaudeInteraction === true) return { action: null };
     if (hasReplyableCompletionMapping(session, options)) return { action: null };
+    // A finished turn the user has not opened yet stays until they view it.
+    if (getClaudeDesktopFileState(session, options)?.unread === true) return { action: null };
     return { action: "delete", reason: "claude-desktop-idle-timeout" };
   }
 
@@ -387,6 +414,7 @@ module.exports = {
   isLocalZcodeDesktopIdleSession,
   isLocalTraeDesktopIdleSession,
   isLocalWorkBuddyDesktopIdleSession,
+  isLocalClaudeDesktopSession,
   isLocalClaudeDesktopIdleSession,
   isLocalCodeBuddyIdeSession,
   getStaleSessionDecision,
