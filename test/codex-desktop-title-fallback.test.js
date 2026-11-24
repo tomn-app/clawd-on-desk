@@ -146,7 +146,7 @@ describe("Codex Desktop untitled display fallback", () => {
 // Run the real row builder with synthetic DOM elements; no Electron/GUI/input.
 function renderRow(entry, feedback = "", language = "zh", { unreadIds = [], wholeRow = false } = {}) {
   const source = fs.readFileSync(path.join(__dirname, "../src/session-hud-renderer.js"), "utf8");
-  const names = ["titleFor", "titleUnits", "shortenHudTitle", "hasActiveSubagents", "showUnreadCompletion", "createRowForSession"];
+  const names = ["titleFor", "titleUnits", "hudTitleMaxUnits", "shortenHudTitle", "hasActiveSubagents", "showUnreadCompletion", "createRowForSession"];
   const functions = names.map((name) => {
     const match = source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`));
     assert.ok(match, name);

@@ -225,7 +225,7 @@ describe("session HUD visual shell", () => {
 
   it("uses a compact HUD-only title without mutating the full session title", () => {
     assert.match(sessionHudRenderer, /HUD_TITLE_MAX_UNITS\s*=\s*15/);
-    assert.match(sessionHudRenderer, /function shortenHudTitle\(value\)/);
+    assert.match(sessionHudRenderer, /function shortenHudTitle\(value, maxUnits = HUD_TITLE_MAX_UNITS\)/);
     assert.match(sessionHudRenderer, /title\.textContent = feedbackText \|\| shortTitle/);
     assert.match(sessionHudRenderer, /title\.title = fullTitle/);
   });

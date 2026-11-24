@@ -73,15 +73,22 @@ function titleUnits(value) {
   return units;
 }
 
-function shortenHudTitle(value) {
+function hudTitleMaxUnits() {
+  // Main grows the budget when the user widens the HUD beyond its automatic
+  // width; anything else keeps the historical compact cap.
+  const units = Number(snapshot.hudTitleMaxUnits);
+  return Number.isInteger(units) && units >= HUD_TITLE_MAX_UNITS ? units : HUD_TITLE_MAX_UNITS;
+}
+
+function shortenHudTitle(value, maxUnits = HUD_TITLE_MAX_UNITS) {
   const full = String(value || "").replace(/\s+/g, " ").trim();
-  if (!full || titleUnits(full) <= HUD_TITLE_MAX_UNITS) return full;
+  if (!full || titleUnits(full) <= maxUnits) return full;
 
   let units = 0;
   let out = "";
   for (const ch of full) {
     const nextUnits = /\s/.test(ch) ? 0.5 : (ch.charCodeAt(0) > 0x7F ? 2 : 1);
-    if (units + nextUnits > HUD_TITLE_MAX_UNITS) break;
+    if (units + nextUnits > maxUnits) break;
     out += ch;
     units += nextUnits;
   }
@@ -90,7 +97,7 @@ function shortenHudTitle(value) {
   const next = full[trimmed.length] || "";
   if (/[A-Za-z0-9]/.test(trimmed.slice(-1)) && /[A-Za-z0-9]/.test(next)) {
     const wordTrimmed = trimmed.replace(/\s+\S*$/, "").trimEnd();
-    if (wordTrimmed && titleUnits(wordTrimmed) >= HUD_TITLE_MAX_UNITS * 0.55) {
+    if (wordTrimmed && titleUnits(wordTrimmed) >= maxUnits * 0.55) {
       trimmed = wordTrimmed;
     }
   }
@@ -236,9 +243,14 @@ function updateUnread(sessions) {
 }
 
 function splitHudLayout(sessions) {
-  const maxRows = snapshot.hudShowStateLabels === false
-    ? HUD_MAX_EXPANDED_ROWS
-    : HUD_MAX_EXPANDED_ROWS_LABELS;
+  // Main sends the effective cap (user setting or per-label-mode default) so
+  // the rendered rows always match the height session-hud.js sized for.
+  const configured = Number(snapshot.hudMaxRows);
+  const maxRows = Number.isInteger(configured) && configured > 0
+    ? configured
+    : (snapshot.hudShowStateLabels === false
+      ? HUD_MAX_EXPANDED_ROWS
+      : HUD_MAX_EXPANDED_ROWS_LABELS);
   const expanded = sessions.slice(0, maxRows);
   const folded = sessions.slice(maxRows);
   return { expanded, folded };
@@ -314,7 +326,7 @@ function createRowForSession(session, now) {
   const fullTitle = session.codexProfileLabel
     ? `${session.codexProfileLabel} · ${sessionTitle}`
     : sessionTitle;
-  const shortTitle = shortenHudTitle(fullTitle);
+  const shortTitle = shortenHudTitle(fullTitle, hudTitleMaxUnits());
   title.className = feedbackText ? "title session-inline-feedback" : "title";
   const fallbackTag = !feedbackText && taggedFallbackTag(session);
   if (fallbackTag) {

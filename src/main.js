@@ -1442,6 +1442,8 @@ let sessionHudEnabled = _settingsController.get("sessionHudEnabled");
 let sessionHudShowStateLabels = _settingsController.get("sessionHudShowStateLabels");
 let sessionHudShowElapsed = _settingsController.get("sessionHudShowElapsed");
 let sessionHudShowContextUsage = _settingsController.get("sessionHudShowContextUsage");
+let sessionHudWidth = _settingsController.get("sessionHudWidth");
+let sessionHudMaxRows = _settingsController.get("sessionHudMaxRows");
 let sessionHudShowQuota = _settingsController.get("sessionHudShowQuota");
 let quotaRingDisplayMode = _settingsController.get("quotaRingDisplayMode");
 let quotaRingShownProviders = _settingsController.get("quotaRingShownProviders");
@@ -3253,6 +3255,8 @@ const _sessionHud = require("./session-hud")({
   get sessionHudShowStateLabels() { return sessionHudShowStateLabels; },
   get sessionHudShowElapsed() { return sessionHudShowElapsed; },
   get sessionHudShowContextUsage() { return sessionHudShowContextUsage; },
+  get sessionHudWidth() { return sessionHudWidth; },
+  get sessionHudMaxRows() { return sessionHudMaxRows; },
   get sessionHudShowQuota() { return sessionHudShowQuota; },
   get quotaRingDisplayMode() { return quotaRingDisplayMode; },
   get quotaRingShownProviders() { return quotaRingShownProviders; },
@@ -5097,6 +5101,8 @@ const SETTINGS_MIRROR_SETTERS = {
   sessionHudShowStateLabels: (v) => { sessionHudShowStateLabels = v; },
   sessionHudShowElapsed: (v) => { sessionHudShowElapsed = v; },
   sessionHudShowContextUsage: (v) => { sessionHudShowContextUsage = v; },
+  sessionHudWidth: (v) => { sessionHudWidth = v; },
+  sessionHudMaxRows: (v) => { sessionHudMaxRows = v; },
   sessionHudShowQuota: (v) => { sessionHudShowQuota = v; },
   quotaRingDisplayMode: (v) => { quotaRingDisplayMode = v; },
   // Preserve null as automatic mode when mirroring settings broadcasts.
