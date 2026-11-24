@@ -324,9 +324,15 @@ describe("session focus handoff", () => {
     assert.ok(begin >= 0 && end > begin,
       "focusTerminalSession or focusDashboardSession moved or was renamed; update this test's source boundaries");
     const calls = [];
+    const sidebarSelections = [];
     const context = {
       focusTerminalWindow: (request) => { calls.push(request); return true; },
       getSessionFocusWtHwnd,
+      process: { platform: "win32" },
+      shouldSelectClaudeDesktopSession: (session) => session.claudeEntrypoint === "claude-desktop",
+      _claudeDesktopSidebarFocus: {
+        selectSession: (session, sid) => { sidebarSelections.push(sid); return Promise.resolve("selected"); },
+      },
     };
     vm.createContext(context);
     vm.runInContext(main.slice(begin, end), context);
@@ -342,6 +348,8 @@ describe("session focus handoff", () => {
       "a Claude Desktop row must not raise whatever WT window it stored");
     assert.strictEqual(calls[0].sourcePid, 101);
     assert.strictEqual(calls[1].wtHwnd, "81", "ordinary terminal sessions keep their handle");
+    assert.deepStrictEqual(sidebarSelections, ["desktop-session"],
+      "only the Claude Desktop row also opens its session in the sidebar");
   });
 
   it("does not launch the desktop app when the URL handler succeeds", async () => {
