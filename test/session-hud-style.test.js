@@ -223,9 +223,10 @@ describe("session HUD visual shell", () => {
     assert.doesNotMatch(sessionHudRenderer, /startupRecovered[\s\S]{0,120}sessionBadgeDone/);
   });
 
-  it("uses a compact HUD-only title without mutating the full session title", () => {
-    assert.match(sessionHudRenderer, /HUD_TITLE_MAX_UNITS\s*=\s*15/);
-    assert.match(sessionHudRenderer, /function shortenHudTitle\(value, maxUnits = HUD_TITLE_MAX_UNITS\)/);
+  it("shows the whole title and lets row CSS ellipsize it at the space left", () => {
+    assert.doesNotMatch(sessionHudRenderer, /HUD_TITLE_MAX_UNITS|shortenHudTitle/);
+    assert.match(sessionHudRenderer, /const shortTitle = hudDisplayTitle\(fullTitle\)/);
+    assert.match(sessionHudHtml, /\.title \{[^}]*flex: 1 1 auto;[^}]*text-overflow: ellipsis;/);
     assert.match(sessionHudRenderer, /title\.textContent = feedbackText \|\| shortTitle/);
     assert.match(sessionHudRenderer, /title\.title = fullTitle/);
   });

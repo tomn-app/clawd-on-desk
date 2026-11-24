@@ -146,7 +146,7 @@ describe("Codex Desktop untitled display fallback", () => {
 // Run the real row builder with synthetic DOM elements; no Electron/GUI/input.
 function renderRow(entry, feedback = "", language = "zh", { unreadIds = [], wholeRow = false } = {}) {
   const source = fs.readFileSync(path.join(__dirname, "../src/session-hud-renderer.js"), "utf8");
-  const names = ["titleFor", "titleUnits", "hudTitleMaxUnits", "shortenHudTitle", "hasActiveSubagents", "showUnreadCompletion", "createRowForSession"];
+  const names = ["titleFor", "hudDisplayTitle", "hasActiveSubagents", "showUnreadCompletion", "createRowForSession"];
   const functions = names.map((name) => {
     const match = source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`));
     assert.ok(match, name);
@@ -158,7 +158,7 @@ function renderRow(entry, feedback = "", language = "zh", { unreadIds = [], whol
   });
   const context = {
     document: { createElement: element }, t: createTranslator(() => language),
-    HUD_TITLE_MAX_UNITS: 15, snapshot: { hudShowElapsed: false }, unreadSessions: new Set(unreadIds),
+    snapshot: { hudShowElapsed: false }, unreadSessions: new Set(unreadIds),
     BELL_SVG: "<svg data-fixture-bell></svg>",
     sessionFeedbackText: () => feedback, stateChipInfo: () => null, usageChipInfo: () => null,
     // The shared width/row predicate lives in session-hud-tagged-fallback.js

@@ -5,7 +5,6 @@ const { taggedFallbackTag } = globalThis.ClawdSessionHudTaggedFallback;
 
 const HUD_MAX_EXPANDED_ROWS = 3;
 const HUD_MAX_EXPANDED_ROWS_LABELS = 5;
-const HUD_TITLE_MAX_UNITS = 15;
 const RECENT_DONE_UNREAD_MS = 60 * 1000;
 const SESSION_ACTION_FEEDBACK_MS = 4000;
 
@@ -64,44 +63,12 @@ function titleFor(session) {
   return session.displayTitle || session.sessionTitle || session.id || "";
 }
 
-function titleUnits(value) {
-  let units = 0;
-  for (const ch of String(value || "")) {
-    if (/\s/.test(ch)) units += 0.5;
-    else units += ch.charCodeAt(0) > 0x7F ? 2 : 1;
-  }
-  return units;
-}
-
-function hudTitleMaxUnits() {
-  // Main grows the budget when the user widens the HUD beyond its automatic
-  // width; anything else keeps the historical compact cap.
-  const units = Number(snapshot.hudTitleMaxUnits);
-  return Number.isInteger(units) && units >= HUD_TITLE_MAX_UNITS ? units : HUD_TITLE_MAX_UNITS;
-}
-
-function shortenHudTitle(value, maxUnits = HUD_TITLE_MAX_UNITS) {
-  const full = String(value || "").replace(/\s+/g, " ").trim();
-  if (!full || titleUnits(full) <= maxUnits) return full;
-
-  let units = 0;
-  let out = "";
-  for (const ch of full) {
-    const nextUnits = /\s/.test(ch) ? 0.5 : (ch.charCodeAt(0) > 0x7F ? 2 : 1);
-    if (units + nextUnits > maxUnits) break;
-    out += ch;
-    units += nextUnits;
-  }
-
-  let trimmed = out.trimEnd();
-  const next = full[trimmed.length] || "";
-  if (/[A-Za-z0-9]/.test(trimmed.slice(-1)) && /[A-Za-z0-9]/.test(next)) {
-    const wordTrimmed = trimmed.replace(/\s+\S*$/, "").trimEnd();
-    if (wordTrimmed && titleUnits(wordTrimmed) >= maxUnits * 0.55) {
-      trimmed = wordTrimmed;
-    }
-  }
-  return `${trimmed}\u2026`;
+// The title is shown whole and the row CSS (.title: flex 1 1 auto, min-width 0,
+// text-overflow: ellipsis) cuts it at the pixels each row actually has left
+// after its own chips. A fixed character budget used to cut every row for the
+// busiest possible row, leaving visible space unused on quieter rows.
+function hudDisplayTitle(value) {
+  return String(value || "").replace(/s+/g, " ").trim();
 }
 
 function orderedHudSessions(currentSnapshot) {
@@ -326,7 +293,7 @@ function createRowForSession(session, now) {
   const fullTitle = session.codexProfileLabel
     ? `${session.codexProfileLabel} · ${sessionTitle}`
     : sessionTitle;
-  const shortTitle = shortenHudTitle(fullTitle, hudTitleMaxUnits());
+  const shortTitle = hudDisplayTitle(fullTitle);
   title.className = feedbackText ? "title session-inline-feedback" : "title";
   const fallbackTag = !feedbackText && taggedFallbackTag(session);
   if (fallbackTag) {
@@ -351,7 +318,8 @@ function createRowForSession(session, now) {
   if (feedbackText) {
     title.title = feedbackText;
     title.setAttribute("aria-live", "polite");
-  } else if (shortTitle && shortTitle !== fullTitle) {
+  } else if (fullTitle) {
+    // CSS may still ellipsize a long title, so hover always shows it whole.
     title.title = fullTitle;
   }
   left.appendChild(title);
