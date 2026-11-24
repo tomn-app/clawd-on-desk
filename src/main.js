@@ -219,6 +219,8 @@ const {
   createClaudeDesktopSidebarFocus,
   shouldSelectClaudeDesktopSession,
 } = require("./claude-desktop-sidebar-focus");
+const { createClaudeDesktopSessionFiles } = require("./claude-desktop-session-files");
+const _claudeDesktopSessionFiles = process.platform === "win32" ? createClaudeDesktopSessionFiles() : null;
 const { publishDshFocus } = require("./dsh-focus-stream");
 const { isSessionInProgress } = require("./state-session-snapshot");
 const { restoreSessionsFromRecoveryLeases } = require("./session-recovery-loader");
@@ -2683,6 +2685,12 @@ const _stateCtx = {
     codexWorkingStaleMs,
     detachedIdleStaleMs,
   }),
+  getClaudeDesktopSessionState: (session) => (
+    _claudeDesktopSessionFiles && session ? _claudeDesktopSessionFiles.getState(session.rawSessionId) : null
+  ),
+  refreshClaudeDesktopSessionFiles: () => {
+    if (_claudeDesktopSessionFiles) _claudeDesktopSessionFiles.refresh().catch(() => {});
+  },
   hasReplyableCompletionMapping: (sessionId, session) => !!(
     telegramDirectSend
     && typeof telegramDirectSend.hasReplyableCompletionMapping === "function"

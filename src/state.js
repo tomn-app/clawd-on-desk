@@ -22,6 +22,7 @@ const {
 } = require("./state-visual-resolver");
 const {
   getStaleSessionDecision,
+  isLocalClaudeDesktopSession,
   isWorkingLikeState,
 } = require("./state-stale-cleanup");
 const {
@@ -4009,6 +4010,16 @@ function cleanStaleSessions() {
   const staleConfig = typeof ctx.getStaleConfig === "function" ? ctx.getStaleConfig() : null;
   const pendingApprovalSessionIds = ctx.getKiroDesktopPendingSessionIds?.() || new Set();
   const terminalWaitSessionIds = ctx.getCopilotTerminalWaitSessionIds?.() || new Set();
+  // Claude Desktop's session files say archived/unread. The read is async and
+  // lands for the next tick; only scan while a Claude Desktop row exists.
+  const getClaudeDesktopSessionState = typeof ctx.getClaudeDesktopSessionState === "function"
+    ? ctx.getClaudeDesktopSessionState
+    : null;
+  if (getClaudeDesktopSessionState && typeof ctx.refreshClaudeDesktopSessionFiles === "function") {
+    for (const s of sessions.values()) {
+      if (isLocalClaudeDesktopSession(s)) { ctx.refreshClaudeDesktopSessionFiles(); break; }
+    }
+  }
   for (const [id, s] of sessions) {
     const childActivityAt = codexSubagentPresentation.lastActivity(id);
     const staleSession = childActivityAt === null ? s : {
@@ -4024,6 +4035,7 @@ function cleanStaleSessions() {
       shouldAutoClearDetachedSession,
       staleConfig,
       hasPendingClaudeInteraction,
+      getClaudeDesktopSessionState,
       hasPendingApprovalReminder: (isLocalApprovalReminderSession(s) && pendingApprovalSessionIds.has(id))
         || (isTerminalWaitSession(s) && terminalWaitSessionIds.has(id)),
       hasReplyableCompletionMapping: typeof ctx.hasReplyableCompletionMapping === "function"

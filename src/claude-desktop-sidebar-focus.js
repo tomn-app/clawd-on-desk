@@ -172,9 +172,17 @@ try {
     Start-Sleep -Milliseconds 300
   }
   if ($hits.Count -eq 0) { 'not-found'; exit 0 }
-  if ($hits.Count -gt 1) { 'ambiguous'; exit 0 }
-  $row = [System.Windows.Automation.TreeWalker]::ControlViewWalker.GetPreviousSibling($hits[0])
-  if (-not $row -or $row.Current.ControlType -ne [System.Windows.Automation.ControlType]::Button -or -not $row.Current.Name.StartsWith($title)) { 'no-row'; exit 0 }
+  # The open session's header has its own "More options for <title>" button.
+  # Only a hit right after a row button whose name starts with the title is a
+  # sidebar row.
+  $rows = @()
+  foreach ($h in $hits) {
+    $prev = [System.Windows.Automation.TreeWalker]::ControlViewWalker.GetPreviousSibling($h)
+    if ($prev -and $prev.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button -and $prev.Current.Name.StartsWith($title, [System.StringComparison]::Ordinal)) { $rows += $prev }
+  }
+  if ($rows.Count -eq 0) { 'no-row'; exit 0 }
+  if ($rows.Count -gt 1) { 'ambiguous'; exit 0 }
+  $row = $rows[0]
   $row.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
   'selected'
 } catch {
@@ -186,6 +194,7 @@ module.exports = {
   createClaudeDesktopSidebarFocus,
   shouldSelectClaudeDesktopSession,
   getClaudeDesktopSessionsRoot,
+  listSessionFiles,
   readTitleIfMatches,
   SIDEBAR_SELECT_SCRIPT,
 };

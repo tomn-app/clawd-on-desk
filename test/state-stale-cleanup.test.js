@@ -113,6 +113,7 @@ function decision(target, overrides = {}) {
     staleConfig: overrides.staleConfig,
     hasPendingClaudeInteraction: overrides.hasPendingClaudeInteraction,
     hasReplyableCompletionMapping: overrides.hasReplyableCompletionMapping,
+    getClaudeDesktopSessionState: overrides.getClaudeDesktopSessionState,
   });
   return { result, calls };
 }
@@ -1435,5 +1436,51 @@ describe("state stale cleanup decisions", () => {
       sourcePid: 71,
     }), { alivePids: new Set([71]) });
     assert.deepStrictEqual(calls, [70]);
+  });
+});
+
+describe("Claude Desktop session-file state", () => {
+  const alivePids = new Set([60, 61]);
+  const staleConfig = { sessionStaleMs: 60_000 };
+  const old = 1000000 - 60_001;
+  const fresh = 1000000 - 1000;
+  const fileState = (state) => () => state;
+
+  it("keeps an unread finished session past the idle timeout", () => {
+    assert.deepStrictEqual(decision(claudeDesktopSession({ updatedAt: old }), {
+      alivePids, staleConfig, getClaudeDesktopSessionState: fileState({ archived: false, unread: true }),
+    }).result, { action: null });
+  });
+
+  it("uses the normal idle timeout once viewed, unknown, or when the reader throws", () => {
+    for (const getter of [
+      fileState({ archived: false, unread: false }),
+      fileState(null),
+      () => { throw new Error("boom"); },
+    ]) {
+      assert.deepStrictEqual(decision(claudeDesktopSession({ updatedAt: old }), {
+        alivePids, staleConfig, getClaudeDesktopSessionState: getter,
+      }).result, { action: "delete", reason: "claude-desktop-idle-timeout" });
+    }
+  });
+
+  it("drops an archived session right away, before the idle timeout", () => {
+    assert.deepStrictEqual(decision(claudeDesktopSession({ updatedAt: fresh }), {
+      alivePids, staleConfig, getClaudeDesktopSessionState: fileState({ archived: true, unread: false }),
+    }).result, { action: "delete", reason: "claude-desktop-archived" });
+  });
+
+  it("keeps an archived session while a Claude interaction is still pending", () => {
+    assert.deepStrictEqual(decision(claudeDesktopSession({ updatedAt: fresh }), {
+      alivePids, staleConfig, hasPendingClaudeInteraction: true,
+      getClaudeDesktopSessionState: fileState({ archived: true, unread: false }),
+    }).result, { action: null });
+  });
+
+  it("ignores file state for non-Desktop Claude sessions", () => {
+    const { result } = decision(claudeDesktopSession({ updatedAt: fresh, claudeEntrypoint: "cli" }), {
+      alivePids, staleConfig, getClaudeDesktopSessionState: fileState({ archived: true, unread: false }),
+    });
+    assert.notStrictEqual(result.reason, "claude-desktop-archived");
   });
 });

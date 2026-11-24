@@ -174,4 +174,10 @@ describe("SIDEBAR_SELECT_SCRIPT", () => {
     assert.ok(SIDEBAR_SELECT_SCRIPT.includes("GetPreviousSibling"));
     assert.ok(SIDEBAR_SELECT_SCRIPT.includes("'ambiguous'"));
   });
+
+  it("skips the open session's header button and keeps only real sidebar rows", () => {
+    assert.ok(SIDEBAR_SELECT_SCRIPT.includes("foreach ($h in $hits)"));
+    assert.ok(SIDEBAR_SELECT_SCRIPT.includes("[System.StringComparison]::Ordinal"));
+    assert.ok(SIDEBAR_SELECT_SCRIPT.includes("if ($rows.Count -gt 1) { 'ambiguous'; exit 0 }"));
+  });
 });
